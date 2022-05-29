@@ -3,16 +3,13 @@ package main
 import (
 	"context"
 	"database/sql"
-	"log"
-	"math/rand"
-	"net/http"
-	"os"
-	"strconv"
-	"time"
-
 	"github.com/codenotary/immudb/pkg/client"
 	"github.com/codenotary/immudb/pkg/stdlib"
 	"github.com/gin-gonic/gin"
+	"github.com/robertolopezlopez/immudemo/dao"
+	"log"
+	"net/http"
+	"os"
 )
 
 type (
@@ -20,7 +17,7 @@ type (
 		/*
 		 createTables creates the initial database structure in immudb
 		*/
-		createTables(context.Context) error
+		CreateTables(context.Context) error
 
 		/*
 		 log pushes the given messages to immudb
@@ -38,10 +35,6 @@ type (
 		 count returns the number of logs stored in immudb
 		*/
 		Count(context.Context) (int, error)
-	}
-
-	DBase struct {
-		db *sql.DB
 	}
 
 	PostBody struct {
@@ -64,14 +57,14 @@ func main() {
 		opts.Address = ""
 	}
 
-	dataBase = DBase{
-		db: stdlib.OpenDB(opts),
+	dataBase = dao.DBase{
+		Db: stdlib.OpenDB(opts),
 	}
 	defer func(db *sql.DB) {
 		_ = db.Close()
-	}(dataBase.(DBase).db)
+	}(dataBase.(dao.DBase).Db)
 
-	err := dataBase.createTables(ctx)
+	err := dataBase.CreateTables(ctx)
 	if err != nil {
 		log.Fatalf("creating tables: %s", err)
 	}
@@ -145,74 +138,4 @@ func countLogs() func(c *gin.Context) {
 			"count": count,
 		})
 	}
-}
-
-func (db DBase) createTables(ctx context.Context) error {
-	_, err := db.db.ExecContext(ctx, "CREATE TABLE IF NOT EXISTS logs(id INTEGER, ts TIMESTAMP, message VARCHAR, PRIMARY KEY id)")
-	if err != nil {
-		return err
-	}
-	_, err = db.db.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS ON logs(ts)")
-	return err
-}
-
-func (db DBase) Log(ctx context.Context, msgs []string) error {
-	tx, err := db.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	r := rand.New(rand.NewSource(time.Now().Unix()))
-	ts := time.Now()
-	for _, msg := range msgs {
-		_, err = tx.Exec("INSERT INTO logs(id, ts, message) values (?, ?, ?)", r.Uint64(), ts, msg)
-		if err != nil {
-			return err
-		}
-	}
-	return tx.Commit()
-}
-
-func (db DBase) Find(ctx context.Context, n string) ([]string, error) {
-	var rows *sql.Rows
-	var err error
-
-	if n != "" {
-		i, err := strconv.Atoi(n)
-		if err != nil {
-			return nil, err
-		}
-		rows, err = db.db.QueryContext(ctx, "SELECT * FROM logs ORDER BY ts DESC LIMIT ?", i)
-	} else {
-		rows, err = db.db.QueryContext(ctx, "SELECT * FROM logs ORDER BY ts")
-	}
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = rows.Close() }()
-
-	var id, ts, message string
-	msgs := []string{}
-
-	for {
-		ok := rows.Next()
-		if !ok {
-			break
-		}
-		err = rows.Scan(&id, &ts, &message)
-		if err != nil {
-			return nil, err
-		}
-		msgs = append(msgs, message)
-	}
-
-	return msgs, nil
-}
-
-func (db DBase) Count(ctx context.Context) (int, error) {
-	var c int
-	err := db.db.QueryRowContext(ctx, "SELECT COUNT(*) AS c FROM logs").Scan(&c)
-	if err != nil {
-		return 0, err
-	}
-	return c, nil
 }
