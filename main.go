@@ -6,6 +6,7 @@ import (
 	"github.com/codenotary/immudb/pkg/client"
 	"github.com/codenotary/immudb/pkg/stdlib"
 	"github.com/gin-gonic/gin"
+	"github.com/robertolopezlopez/immudemo/authentication"
 	"github.com/robertolopezlopez/immudemo/dao"
 	"log"
 	"net/http"
@@ -81,6 +82,8 @@ func main() {
 
 func setupRouter() *gin.Engine {
 	router := gin.Default()
+
+	router.Use(authentication.HeaderAuthMiddleware())
 
 	router.POST("/", writeLogs())
 

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/magiconair/properties/assert"
+	"github.com/robertolopezlopez/immudemo/authentication"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -52,7 +53,7 @@ func setUpMock(m DBaseMock) *gin.Engine {
 	return router
 }
 
-func setUpRecorder(r *gin.Engine, method, url, requestBody string) *httptest.ResponseRecorder {
+func setUpRecorder(r *gin.Engine, method, url, requestBody string, authenticate bool) *httptest.ResponseRecorder {
 	w := httptest.NewRecorder()
 	rb := new(buffer)
 	_, err := rb.WriteString(requestBody)
@@ -60,6 +61,9 @@ func setUpRecorder(r *gin.Engine, method, url, requestBody string) *httptest.Res
 		panic(err.Error())
 	}
 	req, _ := http.NewRequest(method, url, rb)
+	if authenticate {
+		req.Header.Add(authentication.AuthTokenHeader, authentication.AuthTokenValue)
+	}
 	r.ServeHTTP(w, req)
 	return w
 }
@@ -69,10 +73,21 @@ func TestCountRoute_OK(t *testing.T) {
 	m.On("Count", mock.Anything).Return(1, nil)
 	router := setUpMock(m)
 
-	w := setUpRecorder(router, http.MethodGet, "/count", "")
+	w := setUpRecorder(router, http.MethodGet, "/count", "", true)
 
 	assert.Equal(t, w.Code, http.StatusOK)
 	assert.Equal(t, w.Body.String(), `{"count":1}`)
+
+	m.AssertExpectations(t)
+}
+
+func TestCountRoute_auth_NOK(t *testing.T) {
+	m := DBaseMock{}
+	router := setUpMock(m)
+
+	w := setUpRecorder(router, http.MethodGet, "/count", "", false)
+
+	assert.Equal(t, w.Code, http.StatusUnauthorized)
 
 	m.AssertExpectations(t)
 }
@@ -82,7 +97,7 @@ func TestCountRoute_NOK(t *testing.T) {
 	m.On("Count", mock.Anything).Return(0, fmt.Errorf("an error"))
 	router := setUpMock(m)
 
-	w := setUpRecorder(router, http.MethodGet, "/count", "")
+	w := setUpRecorder(router, http.MethodGet, "/count", "", true)
 
 	assert.Equal(t, w.Code, http.StatusInternalServerError)
 	assert.Equal(t, w.Body.String(), `"an error"`)
@@ -95,7 +110,7 @@ func TestReadRoute_1_OK(t *testing.T) {
 	m.On("Find", mock.Anything, "1").Return([]string{"hola"}, nil)
 	router := setUpMock(m)
 
-	w := setUpRecorder(router, http.MethodGet, "/?n=1", "")
+	w := setUpRecorder(router, http.MethodGet, "/?n=1", "", true)
 
 	assert.Equal(t, w.Code, http.StatusOK)
 	assert.Equal(t, w.Body.String(), `{"logs":["hola"]}`)
@@ -108,7 +123,7 @@ func TestReadRoute_all_OK(t *testing.T) {
 	m.On("Find", mock.Anything, "").Return([]string{"hola", "Roberto", "adiós"}, nil)
 	router := setUpMock(m)
 
-	w := setUpRecorder(router, http.MethodGet, "/", "")
+	w := setUpRecorder(router, http.MethodGet, "/", "", true)
 
 	assert.Equal(t, w.Code, http.StatusOK)
 	assert.Equal(t, w.Body.String(), `{"logs":["hola","Roberto","adiós"]}`)
@@ -121,7 +136,7 @@ func TestReadRoute_all_NOK(t *testing.T) {
 	m.On("Find", mock.Anything, "").Return([]string{}, fmt.Errorf("error db"))
 	router := setUpMock(m)
 
-	w := setUpRecorder(router, http.MethodGet, "/", "")
+	w := setUpRecorder(router, http.MethodGet, "/", "", true)
 
 	assert.Equal(t, w.Code, http.StatusInternalServerError)
 	assert.Equal(t, w.Body.String(), `"error db"`)
@@ -134,7 +149,7 @@ func TestWrite_OK(t *testing.T) {
 	m.On("Log", mock.Anything, []string{"hola"}).Return(nil)
 	router := setUpMock(m)
 
-	w := setUpRecorder(router, http.MethodPost, "/", `{"msgs":["hola"]}`)
+	w := setUpRecorder(router, http.MethodPost, "/", `{"msgs":["hola"]}`, true)
 
 	assert.Equal(t, w.Code, http.StatusCreated)
 	assert.Equal(t, w.Body.String(), `{"message":"message(s) successfully logged"}`)
@@ -147,7 +162,7 @@ func TestWrite_Log_NOK(t *testing.T) {
 	m.On("Log", mock.Anything, []string{"hola"}).Return(fmt.Errorf("log error"))
 	router := setUpMock(m)
 
-	w := setUpRecorder(router, http.MethodPost, "/", `{"msgs":["hola"]}`)
+	w := setUpRecorder(router, http.MethodPost, "/", `{"msgs":["hola"]}`, true)
 
 	assert.Equal(t, w.Code, http.StatusInternalServerError)
 	assert.Equal(t, w.Body.String(), `{"error":"log error"}`)
@@ -159,7 +174,7 @@ func TestWrite_no_body_NOK(t *testing.T) {
 	m := DBaseMock{}
 	router := setUpMock(m)
 
-	w := setUpRecorder(router, http.MethodPost, "/", `{"msgs":[]}`)
+	w := setUpRecorder(router, http.MethodPost, "/", `{"msgs":[]}`, true)
 
 	assert.Equal(t, w.Code, http.StatusBadRequest)
 	assert.Equal(t, w.Body.String(), `{"error":"msgs should not be empty"}`)

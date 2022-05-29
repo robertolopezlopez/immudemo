@@ -20,11 +20,21 @@
   * JSON body format:
     * `msgs`: array of messages to log, must not be empty
 
+### Authentication
+
+I have implemented a basic authentication middleware. All requests must have the `X-Token` header with `test` value.
+
+
+
 ## TO DO
 
 * Unit tests
-* Basic authentication middleware
 
-## known issues
+## Known issues
 
-* The query `SELECT * FROM logs LIMIT n` in `count()` method makes `rows.Next()` to panic.
+* The query `SELECT * FROM logs LIMIT n` in `count()` method makes `rows.Next()` to panic. Because of this, the request `GET /?n=10` (or any number) will make the application to crash.
+* Test coverage could be better :-)
+
+> coverage: 61.2% of statements
+> 
+> ok  	github.com/robertolopezlopez/immudemo	1.225s	coverage: 61.2% of statements
