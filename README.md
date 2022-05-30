@@ -24,12 +24,6 @@
 
 I have implemented a basic authentication middleware. All requests must have the `X-Token` header with `test` value.
 
-
-
-## TO DO
-
-* Unit tests
-
 ## Known issues
 
 * The query `SELECT * FROM logs LIMIT n` in `count()` method makes `rows.Next()` to panic. Because of this, the request `GET /?n=10` (or any number) will make the application to crash.
