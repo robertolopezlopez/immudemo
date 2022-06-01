@@ -35,7 +35,7 @@ func TestHeaderAuthMiddleware(t *testing.T) {
 
 func newContext(headers map[string]string) *gin.Context {
 	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
-	ctx.Request, _ = http.NewRequest("GET", "/ping", nil)
+	ctx.Request, _ = http.NewRequest("GET", "/", nil)
 	for key, value := range headers {
 		ctx.Request.Header.Add(key, value)
 	}
